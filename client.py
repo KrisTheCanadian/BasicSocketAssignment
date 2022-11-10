@@ -13,7 +13,7 @@ def commandLineParser() -> argparse.ArgumentParser:
 
 def userInput(s: socket.socket) -> None:
     while True:
-        data = s.recv(1024)
+        data = s.recv(1024*1024)
         data = input(data.decode('utf-8'))
 
         if data == 'exit' or data == ' ':

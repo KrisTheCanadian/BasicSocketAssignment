@@ -224,18 +224,18 @@ def handleInput(clientSocket: socket.socket, input: str, config: dict) -> str:
 
 def handleClient(clientSocket: socket.socket, config: dict) -> None:
     selectMessage = '\nSelect an option: '
+    clientSocket.send(printDatabaseMenuString().encode('utf-8') + selectMessage.encode('utf-8'))
     while True:
-        clientSocket.send(printDatabaseMenuString().encode('utf-8') + selectMessage.encode('utf-8'))
         data = clientSocket.recv(1024).decode('utf-8')
         if not data:
             break
         try:
             response = handleInput(clientSocket, data, config)
             print("Response: ", response)
-            if response != None:
-                clientSocket.send(response.encode('utf-8') + selectMessage.encode('utf-8'))
+            if response is not None:
+                clientSocket.send(response.encode('utf-8') + "\n".encode('utf-8') + printDatabaseMenuString().encode('utf-8') + selectMessage.encode('utf-8'))
             else:
-                clientSocket.send('Error processing request\n'.encode('utf-8'))
+                clientSocket.send('Error processing request\n'.encode('utf-8')  + "\n".encode('utf-8') + printDatabaseMenuString().encode('utf-8') + selectMessage.encode('utf-8'))
         except Exception as e:
             print('Error handling input')
             print(e)
