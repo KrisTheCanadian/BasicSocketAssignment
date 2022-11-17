@@ -2,6 +2,8 @@ import argparse
 import socket
 import sys
 
+BUFFER_SIZE = 1024 * 1024
+
 def commandLineParser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--port', help='Port to listen on', type=int, required=False)
@@ -23,132 +25,61 @@ def printDatabaseMenuString() -> str:
     8. Exit
     '''
 
-def findCustomerInDB(name: str, db: str) -> str | None:
-    try:
-        f = open(db, 'r')
-        for line in f:
-            _name = line.split('|')[0]
-            if name == _name:
-                return line
-        return None
-    except:
-        print('Error loading database: ', db)
-        sys.exit(1)
+def findCustomerInDB(name: str, db: dict) -> str | None:
+    if name in db:
+        return f'{name}|{db[name]["age"]}|{db[name]["address"]}|{db[name]["phone"]}'
+    return None
 
-def addCustomerInDB(name: str, age: int, address: str, phone: str, db: str) -> str:
-    try:
-        f = open(db, 'a')
-        f.write(f'{name}|{age}|{address}|{phone}\n')
-        f.close()
-        return f'{name} added to database'
-    except:
-        print('Error loading database: ', db)
-        sys.exit(1)
+def addCustomerInDB(name: str, age: int, address: str, phone: str, db: dict) -> str:
+    if name in db:
+        return f'{name} already exists in database'
+    db[name] = {
+        'age': age,
+        'address': address,
+        'phone': phone
+    }
+    return f'{name} added to database'
 
-def deleteCustomerInDB(name: str, db: str) -> str:
-    if(findCustomerInDB(name, db) == None):
-        return f'{name} not found in database'
-    try:
-        f = open(db, 'r')
-        lines = f.readlines()
-        f.close()
-        f = open(db, 'w')
-
-        for line in lines:
-            _name = line.split('|')[0]
-            if name == _name:
-                continue
-            f.write(line)
-        f.close()
+def deleteCustomerInDB(name: str, db: dict) -> str:
+    if name in db:
+        del db[name]
         return f'{name} deleted from database'
-    except:
-        print('Error loading database: ', db)
-        sys.exit(1)
+    return f'{name} not found in database'
 
 
-def updateCustomerAgeInDB(name: str, age: int, db: str) -> str:
-    if(findCustomerInDB(name, db) == None):
-        return f'{name} not found in database'
-    try:
-        f = open(db, 'r')
-        lines = f.readlines()
-        f.close()
-        f = open(db, 'w')
-
-        for line in lines:
-            _name = line.split('|')[0]
-            if name in _name:
-                line = line.split('|')
-                line[1] = age
-                line = '|'.join(line)
-            f.write(line)
-        f.close()
-        return f'{name} age updated to {age} in database'
-    except:
-        print('Error loading database: ', db)
-        sys.exit(1)
+def updateCustomerAgeInDB(name: str, age: int, db: dict) -> str:
+    if name in db:
+        db[name]['age'] = age
+        return f'Updated age for {name}'
+    return f'{name} not found in database'
 
 
-def updateCustomerAddressInDB(name: str, address: str, db: str) -> str:
-    if(findCustomerInDB(name, db) == None):
-        return f'{name} not found in database'
-    try:
-        f = open(db, 'r')
-        lines = f.readlines()
-        f.close()
-        f = open(db, 'w')
+def updateCustomerAddressInDB(name: str, address: str, db: dict) -> str:
+    if name in db:
+        db[name]['address'] = address
+        return f'Updated address for {name}'
+    return f'{name} not found in database'
 
-        for line in lines:
-            if name in line:
-                line = line.split('|')
-                line[2] = address
-                line = '|'.join(line)
-            f.write(line)
-        f.close()
-        return f'{name} address updated to {address} in database'
-    except:
-        print('Error loading database: ', db)
-        sys.exit(1)
-
-def updateCustomerPhoneNumberInDB(name: str, phone: str, db: str) -> str:
-    if(findCustomerInDB(name, db) == None):
-        return f'{name} not found in database'
-    try:
-        f = open(db, 'r')
-        lines = f.readlines()
-        f.close()
-        f = open(db, 'w')
-
-        for line in lines:
-            if name in line:
-                line = line.split('|')
-                line[3] = phone
-                line = '|'.join(line)
-            f.write(line)
-        f.close()
-        return f'{name} phone number updated to {phone} in database'
-    except:
-        print('Error loading database: ', db)
-        sys.exit(1)
+def updateCustomerPhoneNumberInDB(name: str, phone: str, db: dict) -> str:
+    if name in db:
+        db[name]['phone'] = phone
+        return f'Updated phone number for {name}'
+    return f'{name} not found in database'
 
 def printReportInDB(db: str) -> str:
-    try:
-        f = open(db, 'r')
-        report = '** Python Db Report **\n'
-        for line in f:
-            report += line
-        return report
-    except:
-        print('Error loading database: ', db)
-        sys.exit(1)
+    report = '\n** Python DB Content **\n'
+    for customer in db:
+        report += f'{customer}|{db[customer]["age"]}|{db[customer]["address"]}|{db[customer]["phone"]}'
+    
+    return report
 
-def handleInput(clientSocket: socket.socket, input: str, config: dict) -> str:
+def handleInput(clientSocket: socket.socket, input: str, dbInstance: dict) -> str:
 
     def findCustomer() -> str:
         clientSocket.send('Enter customer name: '.encode('utf-8'))
-        name: str = clientSocket.recv(1024).decode('utf-8')
+        name: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         print('Finding customer: ', name)
-        response = findCustomerInDB(name, config["database"])
+        response = findCustomerInDB(name, dbInstance)
         if response == None:
             return f'{name} not found in database'
         return response
@@ -156,51 +87,50 @@ def handleInput(clientSocket: socket.socket, input: str, config: dict) -> str:
     def addCustomer() -> str:
 
         clientSocket.send('Enter customer name: '.encode('utf-8'))
-        name: str = clientSocket.recv(1024).decode('utf-8')
+        name: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         clientSocket.send('Enter customer age: '.encode('utf-8'))
-        age: int = int(clientSocket.recv(1024).decode('utf-8'))
+        age: int = int(clientSocket.recv(BUFFER_SIZE).decode('utf-8'))
         clientSocket.send('Enter customer address: '.encode('utf-8'))
-        address: str = clientSocket.recv(1024).decode('utf-8')
+        address: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         clientSocket.send('Enter customer phone number: '.encode('utf-8'))
-        phone: str = clientSocket.recv(1024).decode('utf-8')
+        phone: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
 
         print('Adding customer: ', name)
-        return addCustomerInDB(name, age, address, phone, config["database"])
+        return addCustomerInDB(name, age, address, phone, dbInstance)
 
     def deleteCustomer() -> str:
         clientSocket.send('Enter customer name: '.encode('utf-8'))
-        name: str = clientSocket.recv(1024).decode('utf-8')
+        name: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         print('Deleting customer: ', name)
-        return deleteCustomerInDB(name, config["database"])
+        return deleteCustomerInDB(name, dbInstance)
 
     def updateCustomerAge() -> str:
         clientSocket.send('Enter customer name: '.encode('utf-8'))
-        name: str = clientSocket.recv(1024).decode('utf-8')
+        name: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         clientSocket.send('Enter customer age: '.encode('utf-8'))
-        age: int = int(clientSocket.recv(1024).decode('utf-8'))
+        age: int = int(clientSocket.recv(BUFFER_SIZE).decode('utf-8'))
         print('Updating customer age: ', name)
-        return updateCustomerAgeInDB(name, age, config["database"])
+        return updateCustomerAgeInDB(name, age, dbInstance)
 
     def updateCustomerAddress() -> str:
         clientSocket.send('Enter customer name: '.encode('utf-8'))
-        name: str = clientSocket.recv(1024).decode('utf-8')
+        name: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         clientSocket.send('Enter customer address: '.encode('utf-8'))
-        address: str = clientSocket.recv(1024).decode('utf-8')
+        address: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         print('Updating customer address: ', name)
-        return updateCustomerAddressInDB(name, address, config["database"])
+        return updateCustomerAddressInDB(name, address, dbInstance)
         
 
     def updateCustomerPhoneNumber() -> str:
         clientSocket.send('Enter customer name: '.encode('utf-8'))
-        name: str = clientSocket.recv(1024).decode('utf-8')
+        name: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         clientSocket.send('Enter customer phone number: '.encode('utf-8'))
-        phone: str = clientSocket.recv(1024).decode('utf-8')
+        phone: str = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         print('Updating customer phone number: ', name)
-        return updateCustomerPhoneNumberInDB(name, phone, config["database"])
+        return updateCustomerPhoneNumberInDB(name, phone, dbInstance)
 
     def printReport() -> str:
-        print('Printing report')
-        return printReportInDB(config["database"])
+        return printReportInDB(dbInstance)
 
 
     if input == '1':
@@ -218,28 +148,36 @@ def handleInput(clientSocket: socket.socket, input: str, config: dict) -> str:
     elif input == '7':
         return printReport()
     elif input == '8':
-        sys.exit(0)
+        clientSocket.send('Goodbye'.encode('utf-8'))
+        return 'exit'
     else:
-        return print('Invalid input')
+        clientSocket.send('Invalid Input'.encode('utf-8'))
 
-def handleClient(clientSocket: socket.socket, config: dict) -> None:
+def handleClient(clientSocket: socket.socket, databaseInstance: dict) -> None:
     selectMessage = '\nSelect an option: '
     clientSocket.send(printDatabaseMenuString().encode('utf-8') + selectMessage.encode('utf-8'))
     while True:
-        data = clientSocket.recv(1024).decode('utf-8')
+        data = clientSocket.recv(BUFFER_SIZE).decode('utf-8')
         if not data:
             break
         try:
-            response = handleInput(clientSocket, data, config)
-            print("Response: ", response)
+            response = handleInput(clientSocket, data, databaseInstance)
             if response is not None:
                 clientSocket.send(response.encode('utf-8') + "\n".encode('utf-8') + printDatabaseMenuString().encode('utf-8') + selectMessage.encode('utf-8'))
+            if response == 'exit':
+                break
             else:
                 clientSocket.send('Error processing request\n'.encode('utf-8')  + "\n".encode('utf-8') + printDatabaseMenuString().encode('utf-8') + selectMessage.encode('utf-8'))
         except Exception as e:
-            print('Error handling input')
-            print(e)
-            clientSocket.send('Error handling input'.encode('utf-8') + selectMessage.encode('utf-8'))
+            try:
+                clientSocket.send('Error handling input'.encode('utf-8') + selectMessage.encode('utf-8'))
+            except Exception as e:
+                break
+
+    try:
+        print('Client disconnected', clientSocket.getpeername())
+    except:
+        print('Client disconnected unexpectedly')
 
     clientSocket.close()
 
@@ -249,7 +187,20 @@ def testLoadDatabase(path: str) -> dict:
     except:
         print('Error loading database: ', path)
         sys.exit(1)
+    
+    # create a nested dictionary of customers
+    customers = {}
+    for line in f:
+        line = line.split('|')
+        customers[line[0]] = {
+            'age': line[1],
+            'address': line[2],
+            'phone': line[3]
+        }
+
     f.close()
+
+    return customers
 
 def main():
     args: argparse.ArgumentParser = commandLineParser()
@@ -269,7 +220,9 @@ def main():
     if(args.database):
         config['database'] = args.database
     
-    testLoadDatabase(config['database'])
+    # load database -> nested dictionary
+    # instruction says to load database into memory and modify it only in memory
+    databaseInstance = testLoadDatabase(config['database'])
 
     s: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -285,7 +238,7 @@ def main():
 
         print('Got connection from', addr)
 
-        handleClient(clientSocket, config)
+        handleClient(clientSocket, databaseInstance)
 
 
 
